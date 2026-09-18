@@ -462,15 +462,20 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     find_package(SDL2)
-	find_package(Vorbis REQUIRED)
-	link_libraries(Vorbis::vorbisfile)
-	find_package(Ogg REQUIRED)
-	link_libraries(Ogg::ogg)
+    find_package(Vorbis REQUIRED)
+    link_libraries(Vorbis::vorbisfile)
+    find_package(Ogg REQUIRED)
+    link_libraries(Ogg::ogg)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    # glad is deliberately not listed here: libultraship links it PUBLIC next to EGL,
+    # glapi, drm_nouveau and nx, and repeating it later in the link line would put it
+    # after the libraries that resolve its symbols.
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
-        -lglad
         SDL2::SDL2
         "Ogg::ogg"
         "Vorbis::vorbisfile"
+        Threads::Threads
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
