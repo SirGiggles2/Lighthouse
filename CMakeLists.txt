@@ -506,8 +506,24 @@ option(BUILD_FZERO "Build with F-Zero X support" OFF)
 option(BUILD_OOT "Build with Ocarina of Time support" OFF)
 option(BUILD_MARIO_ARTIST "Build with Mario Artist support" OFF)
 option(BUILD_NAUDIO "Build with NAudio support" OFF)
-add_subdirectory(Torch)
-target_link_libraries(${PROJECT_NAME} PRIVATE torch "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
+# Torch is the desktop-side asset extractor. Its dependency chain (StormLib, yaml-cpp,
+# libgfxd, dr_libs) has no devkitA64 portlibs and extraction needs far more memory than a
+# Switch has, so the Switch build takes only Torch's dependency-free headers - the
+# Torch::ResourceType enum and StringHelper - and never builds or links the library. The
+# extractor entry points are stubbed in GameExtractor.cpp behind __SWITCH__; assets are
+# produced on a PC and the resulting .o2r files are copied to the SD card, exactly as every
+# other Harbour Masters Switch port does it.
+if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/Torch
+        ${CMAKE_SOURCE_DIR}/Torch/src
+        ${CMAKE_SOURCE_DIR}/Torch/lib
+    )
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
+else()
+    add_subdirectory(Torch)
+    target_link_libraries(${PROJECT_NAME} PRIVATE torch "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch")
 

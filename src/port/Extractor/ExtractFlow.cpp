@@ -632,6 +632,8 @@ void GameEngine::RunExtract(int argc, char* argv[]) {
                     ImGui::Text("Done!");
                 } else if (phase >= 1) {
                     ImGui::Text("Processing %s... (Step %d/2)", filename.c_str(), phase);
+#ifndef __SWITCH__
+                    // Per-asset progress text comes from Torch, which is not built for Switch.
                     if (Companion::Instance != nullptr && !Companion::Instance->GetCurrentAssetName().empty()) {
                         auto assetName = Companion::Instance->GetCurrentAssetName();
                         float maxWidth = 600.0f - ImGui::GetStyle().WindowPadding.x * 2;
@@ -648,6 +650,7 @@ void GameEngine::RunExtract(int argc, char* argv[]) {
                         }
                         ImGui::Text("%s", assetName.c_str());
                     }
+#endif
                 } else {
                     ImGui::Text("Starting up...");
                 }

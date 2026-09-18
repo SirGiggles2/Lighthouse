@@ -1,6 +1,17 @@
 #pragma once
 
+// Torch (Companion) is the desktop-side ROM extractor. It is not built for Switch - its
+// dependency chain (StormLib, yaml-cpp, libgfxd, dr_libs) has no devkitA64 portlibs, and
+// extraction needs far more memory than a Switch has. Assets are produced on a PC and the
+// resulting .o2r is copied to the SD card, which is how every other Harbour Masters Switch
+// port works. The class keeps its full shape here so callers need no #ifdefs.
+#ifndef __SWITCH__
 #include "Companion.h"
+#else
+#include <filesystem>
+namespace fs = std::filesystem;
+#endif
+
 #include <filesystem>
 #include <functional>
 #include <optional>

@@ -15,6 +15,10 @@
 #include <fast/Fast3dWindow.h>
 #include <fast/interpreter.h>
 #include "fast/resource/ResourceType.h"
+// Torch::ResourceType carries the BK-specific resource IDs. It is a dependency-free enum
+// header, included directly rather than transitively through Companion.h, which the Switch
+// build excludes along with the rest of the extractor.
+#include "factories/ResourceType.h"
 #include <fast/resource/factory/DisplayListFactory.h>
 #include <fast/resource/factory/TextureFactory.h>
 #include <fast/resource/factory/MatrixFactory.h>

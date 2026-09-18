@@ -387,7 +387,26 @@ bool GameExtractor::GenerateOTR(std::atomic<size_t>& assetCount, std::atomic<siz
     return true;
 }
 #else
-static bool GameExtractor::GenAssetFile() {
+// ---------------------------------------------------------------------------
+// Switch: no Torch, so no in-app extraction. Every member declared in the header is
+// defined here so the link succeeds; the ones that would have driven extraction fail
+// with a message pointing at the PC workflow instead of silently returning false.
+// ---------------------------------------------------------------------------
+
+std::string GameExtractor::sStatusText;
+std::string GameExtractor::sLastError;
+std::string GameExtractor::sLastOutputPath;
+std::atomic<int> GameExtractor::sPhase{ 0 };
+std::atomic<bool> GameExtractor::sCustomCodePromptRequested{ false };
+std::atomic<bool> GameExtractor::sCustomCodePromptActive{ false };
+std::atomic<int> GameExtractor::sCustomCodePromptResult{ -1 };
+
+static constexpr const char* kSwitchNoExtractor =
+    "Asset extraction is not available on Switch. Generate bk.o2r on a PC with the desktop "
+    "build, then copy it to /switch/lighthouse/ on your SD card.";
+
+bool GameExtractor::GenAssetFile() {
+    sLastError = kSwitchNoExtractor;
     return false;
 }
 
@@ -395,21 +414,65 @@ std::optional<std::string> GameExtractor::ValidateChecksum() const {
     return std::nullopt;
 }
 
-bool GameExtractor::LoadRomFromPath(const std::string& romPath) {
+bool GameExtractor::RunStandalone(std::string rom) {
+    (void)rom;
+    sLastError = kSwitchNoExtractor;
     return false;
 }
 
-void GameExtractor::GetRoms(std::vector<std::string>& roms) {
-    // None
+bool GameExtractor::LoadRomFromPath(const std::string& romPath) {
+    (void)romPath;
+    sLastError = kSwitchNoExtractor;
+    return false;
 }
 
-bool GameExtractor::GenerateOTR() {
+void GameExtractor::SetSearchPath(const std::string& path) {
+    mSearchPath = path;
+}
+
+void GameExtractor::GetRoms(std::vector<std::string>& roms) {
+    roms.clear();
+}
+
+std::string GameExtractor::GetRomPath() {
+    return mGamePath.string();
+}
+
+std::string GameExtractor::GetRegionSlug() const {
+    return "";
+}
+
+bool GameExtractor::IsRomhack() const {
+    return false;
+}
+
+bool GameExtractor::GenerateOTR(std::string appShortName) {
+    (void)appShortName;
+    sLastError = kSwitchNoExtractor;
+    return false;
+}
+
+bool GameExtractor::GenerateOTR(std::atomic<size_t>& assetCount, std::string appShortName) {
+    (void)appShortName;
+    assetCount = 0;
+    sLastError = kSwitchNoExtractor;
+    return false;
+}
+
+bool GameExtractor::GenerateOTR(std::atomic<size_t>& assetCount, std::atomic<size_t>& totalAssets,
+                                std::string appShortName) {
+    (void)appShortName;
+    assetCount = 0;
+    totalAssets = 0;
+    sLastError = kSwitchNoExtractor;
     return false;
 }
 
 void GameExtractor::WritePortVersion() {
-    // None
+    // The port version file is written next to the o2r at extraction time, which happens
+    // on PC. Nothing to do here.
 }
+
 #endif
 
 // No #ifdef needed: Lighthouse::PickFile picks the backend (native dialog on desktop, ImGui browser
