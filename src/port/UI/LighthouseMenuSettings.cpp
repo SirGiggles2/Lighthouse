@@ -15,11 +15,26 @@
 
 #include "variables.h"
 
+#ifdef __SWITCH__
+#include <ship/port/switch/SwitchImpl.h>
+#endif
+
 namespace LighthouseGui {
 
 extern std::shared_ptr<LighthouseMenu> mLighthouseMenu;
 extern std::shared_ptr<LighthouseModalWindow> mModalWindow;
 using namespace UIWidgets;
+
+#ifdef __SWITCH__
+// Indices match Ship::SwitchProfiles. Stock is the console's own clock; anything above it
+// is an overclock that runs hotter and drains the battery faster.
+static const std::unordered_map<int32_t, const char*> switchPerfModeLabels = {
+    { Ship::MAXIMUM, "Maximum (1785 MHz)" },     { Ship::HIGH, "High (1581 MHz)" },
+    { Ship::BOOST, "Boost (1224 MHz)" },         { Ship::STOCK, "Stock (1020 MHz)" },
+    { Ship::POWERSAVINGM1, "Powersaving (918 MHz)" }, { Ship::POWERSAVINGM2, "Powersaving (816 MHz)" },
+    { Ship::POWERSAVINGM3, "Powersaving (714 MHz)" },
+};
+#endif
 
 static std::unordered_map<int32_t, const char*> imguiScaleOptions = {
     { 0, "Small" },
@@ -468,6 +483,20 @@ void LighthouseMenu::AddMenuSettings() {
         .CVar(CVAR_TEXTURE_FILTER)
         .RaceDisable(false)
         .Options(ComboboxOptions().Tooltip("Sets the applied Texture Filtering.").ComboMap(textureFilteringMap));
+
+#ifdef __SWITCH__
+    AddWidget(path, "Console", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "CPU Clock", WIDGET_CVAR_COMBOBOX)
+        .CVar(CVAR_SWITCH_PERF_MODE)
+        .RaceDisable(false)
+        .PostFunc([](WidgetInfo& info) { Ship::Switch::ApplyOverclock(); })
+        .Options(ComboboxOptions()
+                     .Tooltip("Sets the CPU clock. Anything above Stock is an overclock: it can help "
+                              "in heavy areas but runs the console hotter and drains the battery "
+                              "faster. The clock drops back to Stock whenever the game loses focus.")
+                     .ComboMap(switchPerfModeLabels)
+                     .DefaultIndex(Ship::STOCK));
+#endif
 
     path.column = SECTION_COLUMN_2;
     AddWidget(path, "Advanced Graphics Options", WIDGET_SEPARATOR_TEXT);
