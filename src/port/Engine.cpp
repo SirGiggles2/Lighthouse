@@ -57,7 +57,7 @@
 #include "LaunchArgs.h"
 
 #ifdef __SWITCH__
-#include <port/switch/SwitchImpl.h>
+#include <ship/port/switch/SwitchImpl.h>
 #endif
 
 // Engine constants
@@ -121,8 +121,9 @@ GameEngine::GameEngine() {
     this->context = Ship::Context::CreateUninitializedInstance("Lighthouse", "bk", "lighthouse.cfg.json");
 
 #ifdef __SWITCH__
+    // Applet-mode check has to happen before anything allocates; PostInitPhase is run by
+    // libultraship once the resource manager is up.
     Ship::Switch::Init(Ship::PreInitPhase);
-    Ship::Switch::Init(Ship::PostInitPhase);
 #endif
 
     this->context->InitConfiguration();
