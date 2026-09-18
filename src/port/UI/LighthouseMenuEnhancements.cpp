@@ -685,6 +685,89 @@ void LighthouseMenu::AddMenuEnhancements() {
         .Options(CheckboxOptions().Tooltip(
             "Disables Mumbo untransforming you when going too far and skips his warning dialog."));
 
+    // Collectibles Section
+    AddWidget(path, "Collectibles", WIDGET_SEPARATOR_TEXT);
+
+    AddWidget(path, "Collectible Magnet", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnet"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip(
+            "Pulls nearby collectibles toward you until the game picks them up normally. Press the "
+            "toggle button below during gameplay to switch the magnet's field on and off."));
+
+    AddWidget(path, "Magnet Range", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetRange"))
+        .RaceDisable(false)
+        .Options(FloatSliderOptions()
+                     .Tooltip("Distance in game units at which collectibles start being pulled in. Banjo is "
+                              "roughly 150 units tall. World-placed eggs, feathers and notes are only pulled "
+                              "once they are within about 1000 units, whatever this is set to.")
+                     .Min(100.0f)
+                     .Max(3000.0f)
+                     .DefaultValue(800.0f)
+                     .Step(50.0f)
+                     .Format("%.0f"));
+
+    AddWidget(path, "Magnet Pull Speed", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetSpeed"))
+        .RaceDisable(false)
+        .Options(FloatSliderOptions()
+                     .Tooltip("Top speed in units per second that collectibles travel at. They accelerate as "
+                              "they close on you.")
+                     .Min(200.0f)
+                     .Max(4000.0f)
+                     .DefaultValue(1400.0f)
+                     .Step(50.0f)
+                     .Format("%.0f"));
+
+    AddWidget(path, "Magnet Toggle Button", WIDGET_CVAR_COMBOBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetHotkey"))
+        .RaceDisable(false)
+        .Options(ComboboxOptions()
+                     .Tooltip("Button that switches the magnet's field on and off during gameplay. The base "
+                              "game does not use the D-pad.")
+                     .ComboMap({
+                         { 0, "None" },
+                         { 1, "D-pad Up" },
+                         { 2, "D-pad Down" },
+                         { 3, "D-pad Left" },
+                         { 4, "D-pad Right" },
+                     })
+                     .DefaultIndex(1));
+
+    AddWidget(path, "D-pad Magnet Range Adjustment", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetDpadRange"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "D-pad Right and Left widen and narrow the magnet range by 100 units during gameplay, updating "
+            "the slider above."));
+
+    AddWidget(path, "Magnetize Musical Notes", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetNotes"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip("Include musical notes."));
+
+    AddWidget(path, "Magnetize Eggs & Feathers", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetEggs"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip("Include blue eggs, red feathers and gold feathers."));
+
+    AddWidget(path, "Magnetize Lives & Honeycombs", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetLives"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "Include extra lives, honeycomb health pieces and empty honeycombs."));
+
+    AddWidget(path, "Magnetize Mumbo Tokens", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetTokens"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip("Include Mumbo tokens."));
+
+    AddWidget(path, "Magnetize Jiggies", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("Cheats.CollectibleMagnetJiggies"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip("Include Jiggies, once they are actually collectible."));
+
     path = { "Enhancements", "Trackers", SECTION_COLUMN_1 };
     AddSidebarEntry("Enhancements", path.sidebarName, 2);
     path.column = SECTION_COLUMN_1;
