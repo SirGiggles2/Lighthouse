@@ -527,9 +527,17 @@ endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch")
 
+# PROJECT_TEAM is commented out above, which would leave the homebrew menu entry with a
+# blank author line.
+if(NOT PROJECT_TEAM)
+    set(NACP_AUTHOR_NAME "Harbour Masters")
+else()
+    set(NACP_AUTHOR_NAME "${PROJECT_TEAM}")
+endif()
+
 nx_generate_nacp(${PROJECT_NAME}.nacp
    NAME "${PROJECT_NAME}"
-   AUTHOR "${PROJECT_TEAM}"
+   AUTHOR "${NACP_AUTHOR_NAME}"
    VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
 )
 
