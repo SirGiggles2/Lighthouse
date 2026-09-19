@@ -5,6 +5,10 @@ name: build-switch
 # The libultraship submodule is repointed at a fork carrying the restored Switch
 # platform layer, since upstream removed it in Kenix3/libultraship#531.
 
+permissions:
+  contents: read
+  issues: write
+
 on:
   push:
     branches: [ "**" ]
@@ -72,8 +76,9 @@ jobs:
       - name: Configure
         run: |
           set -eux
+          set -o pipefail
           source /etc/profile.d/devkit-env.sh
-          cmake --version
+          cmake --version 2>&1 | tee -a switch-build.log
           # CMAKE_POLICY_VERSION_MINIMUM keeps CMake 4 from hard-failing on the fetched
           # dependencies that still declare a pre-3.5 minimum (prism, monocypher).
           # Networking needs SDL2_net plus libnx socket setup, and scripting needs TinyCC
@@ -85,13 +90,14 @@ jobs:
             -DUSE_NETWORKING=OFF \
             -DBUILD_STORMLIB=OFF \
             -DINCLUDE_MPQ_SUPPORT=OFF \
-            -DENABLE_SCRIPTING=OFF
+            -DENABLE_SCRIPTING=OFF 2>&1 | tee -a switch-build.log
 
       - name: Build
         run: |
           set -eux
+          set -o pipefail
           source /etc/profile.d/devkit-env.sh
-          cmake --build build/switch --config Release --parallel
+          cmake --build build/switch --config Release --parallel 2>&1 | tee -a switch-build.log
 
       - name: Package
         run: |
@@ -123,12 +129,57 @@ jobs:
           name: Lighthouse-switch
           path: lighthouse-switch
 
+      - name: Report the failure as an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -u
+          command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3)
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          def tail(path, n):
+              try:
+                  with open(path, "r", errors="replace") as fh:
+                      return "".join(fh.readlines()[-n:])
+              except OSError:
+                  return ""
+
+          parts = []
+          log = tail("switch-build.log", 400)
+          if log.strip():
+              parts.append("### Last 400 lines of configure/build\n\n```\n" + log + "\n```")
+          err = tail("build/switch/CMakeFiles/CMakeError.log", 200)
+          if err.strip():
+              parts.append("### CMakeError.log (tail)\n\n```\n" + err + "\n```")
+          if not parts:
+              parts.append("No log captured - the job failed before the configure step.")
+
+          body = "Run: https://github.com/%s/actions/runs/%s\nCommit: %s\n\n%s" % (
+              os.environ["REPO"], os.environ["RUN_ID"], os.environ["SHA"], "\n\n".join(parts))
+          body = body[:60000]
+
+          req = urllib.request.Request(
+              "https://api.github.com/repos/%s/issues" % os.environ["REPO"],
+              data=json.dumps({"title": "switch build failed (run %s)" % os.environ["RUN_ID"],
+                               "body": body, "labels": []}).encode(),
+              headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                       "Accept": "application/vnd.github+json",
+                       "Content-Type": "application/json"})
+          print("created:", json.load(urllib.request.urlopen(req))["html_url"])
+          PYEOF
+
       - name: Upload CMake logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: switch-cmake-logs
           path: |
+            switch-build.log
             build/switch/CMakeFiles/CMakeError.log
             build/switch/CMakeFiles/CMakeOutput.log
             build/switch/CMakeCache.txt
