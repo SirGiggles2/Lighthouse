@@ -1,0 +1,135 @@
+name: build-switch
+
+# Builds Lighthouse as a Switch homebrew .nro inside devkitPro's devkitA64 container.
+#
+# The libultraship submodule is repointed at a fork carrying the restored Switch
+# platform layer, since upstream removed it in Kenix3/libultraship#531.
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+    inputs:
+      lus_repo:
+        description: "libultraship fork to build against"
+        default: "SirGiggles2/libultraship"
+      lus_ref:
+        description: "branch or commit in that fork"
+        default: "switch-revival"
+
+env:
+  LUS_REPO: ${{ github.event.inputs.lus_repo || 'SirGiggles2/libultraship' }}
+  LUS_REF: ${{ github.event.inputs.lus_ref || 'switch-revival' }}
+
+jobs:
+  build-switch:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkita64:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Point libultraship at the Switch-enabled fork
+        run: |
+          set -eux
+          rm -rf libultraship
+          git clone --depth 1 --branch "${LUS_REF}" "https://github.com/${LUS_REPO}.git" libultraship
+          git -C libultraship log -1 --oneline
+
+      # The first run of this job is also a survey: the package list tells us exactly which
+      # portlibs exist, so missing dependencies can be swapped for FetchContent builds.
+      - name: Survey available Switch portlibs
+        run: |
+          dkp-pacman -Sy --noconfirm
+          echo "----- switch-* packages available -----"
+          dkp-pacman -Sl switch | awk '{print $2}' | sort
+
+      - name: Install dependencies
+        run: |
+          set -eux
+          # Package list checked against devkitPro/pacman-packages: these all exist.
+          # libzip, spdlog, fmt and nlohmann-json have no Switch portlib and are built
+          # from source by cmake/dependencies/switch.cmake in libultraship.
+          dkp-pacman -S --noconfirm --needed \
+            switch-dev \
+            switch-sdl2 \
+            switch-zlib \
+            switch-bzip2 \
+            switch-libpng \
+            switch-libogg \
+            switch-libvorbis \
+            switch-libvorbisidec \
+            switch-glad \
+            switch-glm \
+            switch-mesa \
+            switch-libdrm_nouveau \
+            switch-tinyxml2
+
+      - name: Configure
+        run: |
+          set -eux
+          source /etc/profile.d/devkit-env.sh
+          cmake --version
+          # CMAKE_POLICY_VERSION_MINIMUM keeps CMake 4 from hard-failing on the fetched
+          # dependencies that still declare a pre-3.5 minimum (prism, monocypher).
+          # Networking needs SDL2_net plus libnx socket setup, and scripting needs TinyCC
+          # for aarch64 - both are follow-up work, not part of getting a booting .nro.
+          cmake -S . -B build/switch -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DUSE_NETWORKING=OFF \
+            -DBUILD_STORMLIB=OFF \
+            -DINCLUDE_MPQ_SUPPORT=OFF \
+            -DENABLE_SCRIPTING=OFF
+
+      - name: Build
+        run: |
+          set -eux
+          source /etc/profile.d/devkit-env.sh
+          cmake --build build/switch --config Release --parallel
+
+      - name: Package
+        run: |
+          set -eux
+          mkdir -p lighthouse-switch
+          nro="$(find build/switch -name 'Lighthouse.nro' -print -quit)"
+          test -n "$nro"
+          cp "$nro" lighthouse-switch/
+          cp README.md lighthouse-switch/readme.txt
+          cat > lighthouse-switch/HOW-TO-INSTALL.txt <<'EOF'
+          Copy Lighthouse.nro to /switch/lighthouse/ on your SD card, and put your
+          existing bk.o2r and lighthouse.o2r next to it (both come from a 1.1.0 PC
+          install - the .nro is built from the same tag, so they match).
+
+          Launch it from the homebrew menu in full-memory mode: hold R while opening
+          any installed game. Applet mode does not have enough memory and the build
+          will tell you so on a console screen.
+
+          Asset extraction does not run on Switch - Torch needs more memory than the
+          console has and has no devkitA64 build. Generate bk.o2r on a PC first.
+
+          Online play (Anchor) is off in this build: it needs SDL2_net plus libnx
+          socket setup that has not been wired up yet.
+          EOF
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lighthouse-switch
+          path: lighthouse-switch
+
+      - name: Upload CMake logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: switch-cmake-logs
+          path: |
+            build/switch/CMakeFiles/CMakeError.log
+            build/switch/CMakeFiles/CMakeOutput.log
+            build/switch/CMakeCache.txt
+          if-no-files-found: ignore
