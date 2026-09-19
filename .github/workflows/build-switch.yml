@@ -6,7 +6,7 @@ name: build-switch
 # platform layer, since upstream removed it in Kenix3/libultraship#531.
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 on:
@@ -183,6 +183,32 @@ jobs:
         with:
           name: Lighthouse-switch
           path: lighthouse-switch
+
+      # The artifact and log hosts are on a separate domain that some networks do not
+      # reach, so the build also lands on a branch: a git clone over HTTPS works anywhere
+      # the repo itself does. The branch holds only the build, with no history.
+      - name: Publish the build to the builds branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          nro="$(find build/switch -name 'Lighthouse.nro' -print -quit)"
+          test -n "$nro"
+          publish="$(mktemp -d)"
+          cp "$nro" "$publish/Lighthouse.nro"
+          cp lighthouse-switch/HOW-TO-INSTALL.txt "$publish/" || true
+          printf 'Built from %s on %s\nRun: %s\n' \
+            "${{ github.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > "$publish/BUILD-INFO.txt"
+          cd "$publish"
+          git init -q -b builds
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Switch build from ${{ github.sha }}"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" builds
 
       - name: Report the failure as an issue
         if: failure()
