@@ -12,6 +12,11 @@ permissions:
 on:
   push:
     branches: [ "**" ]
+  # pkg.devkitpro.org goes down for stretches at a time, and until the portlib cache is
+  # populated once there is nothing to build against. Retrying on a schedule means the
+  # first green run happens on its own whenever that server comes back.
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       lus_repo:
