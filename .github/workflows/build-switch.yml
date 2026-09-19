@@ -49,7 +49,23 @@ jobs:
           git clone --depth 1 --branch "${LUS_REF}" "https://github.com/${LUS_REPO}.git" libultraship
           git -C libultraship log -1 --oneline
 
+      # pkg.devkitpro.org is a single slow mirror that intermittently stalls mid-download
+      # and takes the whole job with it. Cache the installed portlibs and the package
+      # cache so only the first run needs it, and save the cache as soon as the install
+      # succeeds rather than at the end of the job - otherwise a later build failure
+      # throws the packages away and the next run is back on the network.
+      - name: Restore devkitPro portlibs
+        id: dkp-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /opt/devkitpro/portlibs
+            /opt/devkitpro/pacman/var/cache/pacman/pkg
+            /opt/devkitpro/pacman/var/lib/pacman
+          key: dkp-switch-portlibs-v2
+
       - name: Install dependencies
+        if: steps.dkp-cache.outputs.cache-hit != 'true'
         run: |
           exec > >(tee -a switch-build.log) 2>&1
           set -eux
@@ -59,18 +75,29 @@ jobs:
           pkgs="switch-dev switch-sdl2 switch-zlib switch-bzip2 switch-libpng
                 switch-libogg switch-libvorbis switch-libvorbisidec switch-glad
                 switch-glm switch-mesa switch-libdrm_nouveau switch-tinyxml2"
-          # dkp-pacman talks to a single mirror and fails outright on a hiccup, so both
-          # the database refresh and the install get retried before the job gives up.
+          # --disable-download-timeout: the mirror regularly drops below pacman's
+          # low-speed floor without actually being dead.
+          opts="--noconfirm --disable-download-timeout"
           ok=0
-          for attempt in 1 2 3 4; do
-            if dkp-pacman -Sy --noconfirm && dkp-pacman -S --noconfirm --needed $pkgs; then
+          for attempt in 1 2 3 4 5; do
+            if dkp-pacman -Sy $opts && dkp-pacman -S $opts --needed $pkgs; then
               ok=1
               break
             fi
             echo "dependency install failed (attempt $attempt), retrying"
-            sleep $((attempt * 20))
+            sleep $((attempt * 30))
           done
           test "$ok" = 1
+
+      - name: Save devkitPro portlibs
+        if: steps.dkp-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /opt/devkitpro/portlibs
+            /opt/devkitpro/pacman/var/cache/pacman/pkg
+            /opt/devkitpro/pacman/var/lib/pacman
+          key: dkp-switch-portlibs-v2
 
       # Everything from here on is mirrored into switch-build.log, so a failure is
       # reportable even when it happens before any tool produces output.
