@@ -25,6 +25,44 @@ def tail(path, lines):
         return ""
 
 
+def read(path):
+    try:
+        with open(path, "r", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+# A link command line lists every object file in the project and runs to tens of
+# thousands of characters. Left intact it pushes the actual error past the issue size
+# limit, which is exactly what happened to the first link failure.
+def elide(line, limit=600):
+    if len(line) <= limit:
+        return line
+    return "{} ...[{} chars elided]... {}".format(line[:300], len(line) - 600, line[-300:])
+
+
+ERROR_RE = re.compile(
+    r"\b(error|fatal error|FAILED|undefined reference|cannot find|ld returned|"
+    r"multiple definition|No such file or directory)\b"
+)
+
+
+def errors_only(log, limit=120):
+    seen, out = set(), []
+    for line in log.splitlines():
+        if not ERROR_RE.search(line):
+            continue
+        line = elide(line.rstrip())
+        if line in seen:
+            continue
+        seen.add(line)
+        out.append(line)
+        if len(out) == limit:
+            break
+    return "\n".join(out)
+
+
 def section(title, text, fence=True):
     if not text.strip():
         return None
@@ -76,11 +114,18 @@ def main():
     run_id = os.environ["RUN_ID"]
     sha = os.environ["SHA"]
 
+    full = read("switch-build.log")
+    # Errors first and deduplicated, so the thing that broke is never the part that gets
+    # truncated away.
     parts = [
         p
         for p in (
-            section("Last 400 lines of configure/build", tail("switch-build.log", 400)),
-            section("CMakeError.log (tail)", tail("build/switch/CMakeFiles/CMakeError.log", 200)),
+            section("Errors", errors_only(full)),
+            section(
+                "Tail of configure/build",
+                "\n".join(elide(ln) for ln in full.splitlines()[-250:]),
+            ),
+            section("CMakeError.log (tail)", tail("build/switch/CMakeFiles/CMakeError.log", 150)),
         )
         if p
     ]
@@ -88,7 +133,7 @@ def main():
         parts = ["No log was captured - the job failed before the configure step."]
 
     token = os.environ["GH_TOKEN"]
-    sig = signature(tail("switch-build.log", 400))
+    sig = signature(full)
     marker = "<!-- sig:{} -->".format(sig)
 
     body = "Run: https://github.com/{}/actions/runs/{}\nCommit: {}\n{}\n\n{}".format(
