@@ -51,31 +51,26 @@ jobs:
 
       - name: Install dependencies
         run: |
+          exec > >(tee -a switch-build.log) 2>&1
           set -eux
-          # Refreshing the package database is flaky against some mirrors, so retry it
-          # rather than failing the whole job on a transient network error.
-          for attempt in 1 2 3; do
-            dkp-pacman -Sy --noconfirm && break
-            echo "pacman -Sy failed (attempt $attempt), retrying"
-            sleep 15
+          # Package names all checked against devkitPro/pacman-packages. libzip, spdlog,
+          # fmt and nlohmann-json have no Switch portlib and are built from source by
+          # cmake/dependencies/switch.cmake in libultraship.
+          pkgs="switch-dev switch-sdl2 switch-zlib switch-bzip2 switch-libpng
+                switch-libogg switch-libvorbis switch-libvorbisidec switch-glad
+                switch-glm switch-mesa switch-libdrm_nouveau switch-tinyxml2"
+          # dkp-pacman talks to a single mirror and fails outright on a hiccup, so both
+          # the database refresh and the install get retried before the job gives up.
+          ok=0
+          for attempt in 1 2 3 4; do
+            if dkp-pacman -Sy --noconfirm && dkp-pacman -S --noconfirm --needed $pkgs; then
+              ok=1
+              break
+            fi
+            echo "dependency install failed (attempt $attempt), retrying"
+            sleep $((attempt * 20))
           done
-          # Package list checked against devkitPro/pacman-packages: these all exist.
-          # libzip, spdlog, fmt and nlohmann-json have no Switch portlib and are built
-          # from source by cmake/dependencies/switch.cmake in libultraship.
-          dkp-pacman -S --noconfirm --needed \
-            switch-dev \
-            switch-sdl2 \
-            switch-zlib \
-            switch-bzip2 \
-            switch-libpng \
-            switch-libogg \
-            switch-libvorbis \
-            switch-libvorbisidec \
-            switch-glad \
-            switch-glm \
-            switch-mesa \
-            switch-libdrm_nouveau \
-            switch-tinyxml2
+          test "$ok" = 1
 
       # Everything from here on is mirrored into switch-build.log, so a failure is
       # reportable even when it happens before any tool produces output.
