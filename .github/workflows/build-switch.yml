@@ -44,17 +44,16 @@ jobs:
           git clone --depth 1 --branch "${LUS_REF}" "https://github.com/${LUS_REPO}.git" libultraship
           git -C libultraship log -1 --oneline
 
-      # The first run of this job is also a survey: the package list tells us exactly which
-      # portlibs exist, so missing dependencies can be swapped for FetchContent builds.
-      - name: Survey available Switch portlibs
-        run: |
-          dkp-pacman -Sy --noconfirm
-          echo "----- switch-* packages available -----"
-          dkp-pacman -Sl switch | awk '{print $2}' | sort
-
       - name: Install dependencies
         run: |
           set -eux
+          # Refreshing the package database is flaky against some mirrors, so retry it
+          # rather than failing the whole job on a transient network error.
+          for attempt in 1 2 3; do
+            dkp-pacman -Sy --noconfirm && break
+            echo "pacman -Sy failed (attempt $attempt), retrying"
+            sleep 15
+          done
           # Package list checked against devkitPro/pacman-packages: these all exist.
           # libzip, spdlog, fmt and nlohmann-json have no Switch portlib and are built
           # from source by cmake/dependencies/switch.cmake in libultraship.
@@ -138,40 +137,8 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -u
-          command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3)
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
-
-          def tail(path, n):
-              try:
-                  with open(path, "r", errors="replace") as fh:
-                      return "".join(fh.readlines()[-n:])
-              except OSError:
-                  return ""
-
-          parts = []
-          log = tail("switch-build.log", 400)
-          if log.strip():
-              parts.append("### Last 400 lines of configure/build\n\n```\n" + log + "\n```")
-          err = tail("build/switch/CMakeFiles/CMakeError.log", 200)
-          if err.strip():
-              parts.append("### CMakeError.log (tail)\n\n```\n" + err + "\n```")
-          if not parts:
-              parts.append("No log captured - the job failed before the configure step.")
-
-          body = "Run: https://github.com/%s/actions/runs/%s\nCommit: %s\n\n%s" % (
-              os.environ["REPO"], os.environ["RUN_ID"], os.environ["SHA"], "\n\n".join(parts))
-          body = body[:60000]
-
-          req = urllib.request.Request(
-              "https://api.github.com/repos/%s/issues" % os.environ["REPO"],
-              data=json.dumps({"title": "switch build failed (run %s)" % os.environ["RUN_ID"],
-                               "body": body, "labels": []}).encode(),
-              headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
-                       "Accept": "application/vnd.github+json",
-                       "Content-Type": "application/json"})
-          print("created:", json.load(urllib.request.urlopen(req))["html_url"])
-          PYEOF
+          command -v python3 >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq python3)
+          python3 .github/scripts/report_build_failure.py
 
       - name: Upload CMake logs on failure
         if: failure()
