@@ -31,6 +31,11 @@ jobs:
     container:
       image: devkitpro/devkita64:latest
 
+    # Explicit, because the steps rely on process substitution for logging.
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,12 +77,33 @@ jobs:
             switch-libdrm_nouveau \
             switch-tinyxml2
 
+      # Everything from here on is mirrored into switch-build.log, so a failure is
+      # reportable even when it happens before any tool produces output.
+      - name: Environment
+        run: |
+          exec > >(tee -a switch-build.log) 2>&1
+          set -x
+          echo "--- devkit env ---"
+          ls -la /etc/profile.d/ || true
+          echo "DEVKITPRO=${DEVKITPRO:-unset} DEVKITARM=${DEVKITARM:-unset} DEVKITA64=${DEVKITA64:-unset}"
+          ls /opt/devkitpro || true
+          ls /opt/devkitpro/cmake || true
+          for t in cmake ninja aarch64-none-elf-gcc python3 pkg-config; do
+            printf '%-24s %s\n' "$t" "$(command -v $t || echo MISSING)"
+          done
+          cmake --version || true
+
       - name: Configure
         run: |
+          exec > >(tee -a switch-build.log) 2>&1
           set -eux
-          set -o pipefail
-          source /etc/profile.d/devkit-env.sh
-          cmake --version 2>&1 | tee -a switch-build.log
+          # The devkitA64 image exports DEVKITPRO as a Docker ENV; older images used a
+          # profile script instead. Take whichever exists rather than assuming.
+          if [ -f /etc/profile.d/devkit-env.sh ]; then . /etc/profile.d/devkit-env.sh; fi
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          export DEVKITA64="${DEVKITA64:-$DEVKITPRO/devkitA64}"
+          export PATH="$DEVKITPRO/tools/bin:$DEVKITA64/bin:$PATH"
+          test -f "$DEVKITPRO/cmake/Switch.cmake"
           # CMAKE_POLICY_VERSION_MINIMUM keeps CMake 4 from hard-failing on the fetched
           # dependencies that still declare a pre-3.5 minimum (prism, monocypher).
           # Networking needs SDL2_net plus libnx socket setup, and scripting needs TinyCC
@@ -89,14 +115,17 @@ jobs:
             -DUSE_NETWORKING=OFF \
             -DBUILD_STORMLIB=OFF \
             -DINCLUDE_MPQ_SUPPORT=OFF \
-            -DENABLE_SCRIPTING=OFF 2>&1 | tee -a switch-build.log
+            -DENABLE_SCRIPTING=OFF
 
       - name: Build
         run: |
+          exec > >(tee -a switch-build.log) 2>&1
           set -eux
-          set -o pipefail
-          source /etc/profile.d/devkit-env.sh
-          cmake --build build/switch --config Release --parallel 2>&1 | tee -a switch-build.log
+          if [ -f /etc/profile.d/devkit-env.sh ]; then . /etc/profile.d/devkit-env.sh; fi
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          export DEVKITA64="${DEVKITA64:-$DEVKITPRO/devkitA64}"
+          export PATH="$DEVKITPRO/tools/bin:$DEVKITA64/bin:$PATH"
+          cmake --build build/switch --config Release --parallel
 
       - name: Package
         run: |
