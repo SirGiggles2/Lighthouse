@@ -1,0 +1,13 @@
+Copy Lighthouse.nro to /switch/lighthouse/ on your SD card, and put your
+existing bk.o2r and lighthouse.o2r next to it (both come from a 1.1.0 PC
+install - the .nro is built from the same tag, so they match).
+
+Launch it from the homebrew menu in full-memory mode: hold R while opening
+any installed game. Applet mode does not have enough memory and the build
+will tell you so on a console screen.
+
+Asset extraction does not run on Switch - Torch needs more memory than the
+console has and has no devkitA64 build. Generate bk.o2r on a PC first.
+
+Online play (Anchor) is off in this build: it needs SDL2_net plus libnx
+socket setup that has not been wired up yet.
